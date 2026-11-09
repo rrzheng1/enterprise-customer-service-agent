@@ -1,0 +1,6 @@
+title = "Customer Agent release secret scan"
+[extend]
+useDefault = true
+
+# Scan exported public source locally; scan all tracked paths in Git history in CI.
+# Do not allowlist data/env paths: they must still be detected if ever committed.

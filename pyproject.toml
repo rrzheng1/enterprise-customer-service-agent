@@ -1,0 +1,16 @@
+[project]
+name = "enterprise-customer-service-agent"
+version = "0.1.0"
+description = "A FastAPI-based customer service Agent with RAG, tool calling, and optional MCP capabilities."
+readme = "README.md"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "mcp_services/after_sales_server/src"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

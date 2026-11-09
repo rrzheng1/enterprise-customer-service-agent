@@ -1,0 +1,33 @@
+import { useCallback, useEffect, useState } from 'react';
+import { request, query, describeError, type Conversation, type Schema, type Session, type Workspace } from '../api/client';
+import { statusText } from '../api/presentation';
+type Handoff = Schema<'HumanHandoffView'>;
+export default function Operations({ session: s }: { session: Session }) {
+  const [conversations, setConversations] = useState<Conversation[]>([]); const [queue, setQueue] = useState<Handoff[]>([]);
+  const [runs, setRuns] = useState<Schema<'RunSummaryView'>[]>([]); const [detail, setDetail] = useState<Schema<'AgentRunView'> | null>(null);
+  const [workspace, setWorkspace] = useState<Workspace | null>(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState(''); const [summary, setSummary] = useState(''); const [selected, setSelected] = useState<string>('');
+  const operator = s.roles.some(r => r === 'operator' || r === 'admin');
+  const reload = useCallback(async () => {
+    const q = query({ tenant_id: s.tenant_id });
+    const [c, h, r] = await Promise.all([request<Conversation[]>(`/ops/api/conversations?${q}`), request<Handoff[]>(`${s.api_prefix}/human-support/queue?${q}`), operator ? request<Schema<'RunSummaryView'>[]>(`/ops/api/runs?${q}`) : Promise.resolve([])]);
+    setConversations(c); setQueue(h); setRuns(r);
+  }, [s, operator]);
+  useEffect(() => { reload().catch(e => setError(describeError(e))); }, [reload]);
+  async function act(fn: () => Promise<unknown>) { if (busy) return; setBusy(true); setError(''); try { await fn(); await reload(); } catch (e) { setError(describeError(e)); } finally { setBusy(false); } }
+  const handoff = queue.find(h => h.id === selected);
+  async function openConversation(c: Conversation) { await act(async () => { setWorkspace(await request<Workspace>(`${s.api_prefix}/conversations/${encodeURIComponent(c.id)}/workspace?${query({ tenant_id: c.tenant_id, user_id: c.user_id })}`)); }); }
+  return <div className="operations page"><header className="page-heading"><div><p className="eyebrow">OPERATIONS</p><h1>客服运营工作台</h1><p>真实服务记录、人工协同与执行审计</p></div><button className="secondary" disabled={busy} onClick={() => act(reload)}>刷新数据</button></header>
+    {error && <div role="alert" className="error">{error}</div>}
+    <div className="metrics"><div><strong>{conversations.length}</strong><span>最近会话（最多 60）</span></div><div><strong>{queue.filter(h => !['resolved', 'cancelled'].includes(h.status)).length}</strong><span>队列中未结束任务</span></div><div><strong>{runs.reduce((a, r) => a + r.total_tokens, 0).toLocaleString()}</strong><span>最近记录 Token 用量（最多 40 条）</span></div></div>
+    <div className="ops-grid"><section className="panel"><h2>客户会话</h2><div className="scroll-list">{conversations.map(c => <button disabled={busy} className="list-row" key={c.id} onClick={() => openConversation(c)}><span>{c.title}<small>{c.user_id} · {statusText(c.service_mode)}</small></span><span className="pill">{statusText(c.status)}</span></button>)}{!conversations.length && <p className="muted">暂无会话记录</p>}</div></section>
+    <section className="panel"><h2>会话与售后工单</h2>{workspace ? <><h3>{workspace.conversation.title}</h3><div className="transcript">{workspace.messages.filter(m => ['user', 'assistant'].includes(m.role)).map(m => <p key={m.id}><strong>{m.role === 'user' ? '客户' : '客服'}：</strong>{m.content}</p>)}</div>{workspace.tickets.map(t => <div className="ticket" key={t.id}><strong>{t.title}</strong><p>{t.id} · {statusText(t.status)}</p></div>)}{!workspace.tickets.length && <p className="muted">此会话暂无售后工单</p>}</> : <p className="muted">选择左侧会话，查看消息与关联工单。</p>}</section>
+    <section className="panel"><h2>人工接管任务</h2>{queue.map(h => <button className={`list-row ${selected === h.id ? 'active' : ''}`} key={h.id} disabled={busy} onClick={() => setSelected(h.id)}><span>{h.reason}<small>{h.user_id} · {h.assigned_agent_id || '待分配'}</small></span><span className="pill">{statusText(h.status)}</span></button>)}{!queue.length && <p className="muted">暂无人工接管任务</p>}</section>
+    <section className="panel"><h2>人工处理</h2>{handoff ? <><p>{handoff.reason}</p><p className="muted">当前状态：{statusText(handoff.status)}</p>
+      {handoff.status === 'waiting_assignment' && <button disabled={busy} onClick={() => act(() => request(`${s.api_prefix}/human-support/${handoff.id}/assign`, { tenant_id: s.tenant_id, agent_id: s.user_id, expected_version: handoff.version }))}>由我接管</button>}
+      {['assigned', 'in_service'].includes(handoff.status) && handoff.assigned_agent_id === s.user_id && <><label>回复客户<textarea value={message} onChange={e => setMessage(e.target.value)} maxLength={8000}/></label><button disabled={busy || !message.trim()} onClick={() => act(async () => { await request(`${s.api_prefix}/human-support/${handoff.id}/messages`, { tenant_id: s.tenant_id, agent_id: s.user_id, content: message }); setMessage(''); })}>发送人工回复</button><label>处理结论<textarea value={summary} onChange={e => setSummary(e.target.value)} maxLength={8000}/></label><button className="secondary" disabled={busy || !summary.trim()} onClick={() => act(async () => { await request(`${s.api_prefix}/human-support/${handoff.id}/resolution`, { tenant_id: s.tenant_id, agent_id: s.user_id, resolution_code: 'resolved', summary, next_mode: 'resume_bot' }); setSummary(''); })}>提交结论并申请恢复智能客服</button></>}
+      {handoff.status === 'resolution_submitted' && <><p>{handoff.resolution_summary}</p>{operator && <button disabled={busy} onClick={() => act(() => request(`${s.api_prefix}/human-support/${handoff.id}/resolution/confirm`, { tenant_id: s.tenant_id, operator_id: s.user_id, expected_version: handoff.version }))}>审核处理结论</button>}</>}
+    </> : <p className="muted">选择人工任务后处理。所有动作受后端权限与状态校验。</p>}</section></div>
+    {operator && <section className="panel"><h2>Agent 执行记录</h2><div className="table-wrap"><table><thead><tr><th>记录</th><th>模型</th><th>状态</th><th>Tokens</th><th>错误</th></tr></thead><tbody>{runs.map(r => <tr key={r.id}><td><button className="text-button" disabled={busy} onClick={() => act(async () => setDetail(await request(`${s.api_prefix}/agent-runs/${r.id}`)))}>{r.id.slice(0, 12)}</button></td><td>{r.model || '—'}</td><td>{statusText(r.status)}</td><td>{r.total_tokens}</td><td>{r.error_code || '—'}</td></tr>)}</tbody></table></div>{detail && <div><h3>执行详情 · {detail.id}</h3>{detail.error_message && <p className="error">{detail.error_message}</p>}{detail.steps?.map(step => <details key={step.id}><summary>{step.name} · {statusText(step.status)} · {step.latency_ms ?? '—'} ms</summary><pre>{JSON.stringify({ input: step.input, output: step.output }, null, 2)}</pre></details>)}</div>}</section>}
+  </div>;
+}

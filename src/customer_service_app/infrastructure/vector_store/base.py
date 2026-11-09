@@ -1,0 +1,36 @@
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import Protocol
+
+from customer_service_app.domain.schemas import KnowledgeChunk
+
+
+class KnowledgeVectorStore(Protocol):
+    """Interface for knowledge vector stores."""
+
+    async def search(
+        self,
+        *,
+        tenant_id: str,
+        query_vector: list[float],
+        top_k: int,
+        score_threshold: float,
+        document_types: Sequence[str] | None = None,
+    ) -> list[KnowledgeChunk]:
+        """Search relevant chunks, optionally restricted to document types."""
+        ...
+
+    async def upsert_chunks(
+        self,
+        *,
+        tenant_id: str,
+        chunks: list[KnowledgeChunk],
+        vectors: list[list[float]],
+    ) -> None:
+        """Upsert knowledge chunks and their embeddings into the vector store."""
+        ...
+
+    async def delete_chunks(self, *, tenant_id: str, chunk_ids: list[str]) -> None:
+        """Delete tenant-owned chunks by their storage IDs."""
+        ...

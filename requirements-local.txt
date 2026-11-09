@@ -1,0 +1,2 @@
+# SQLite is included in the shared lock.
+-r requirements.txt

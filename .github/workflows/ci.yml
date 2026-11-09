@@ -1,0 +1,96 @@
+name: CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    env:
+      RUNTIME_ENV: test
+      DATABASE_URL: mysql+aiomysql://customer_service:ci-only-password@127.0.0.1:3306/customer_service?charset=utf8mb4
+      RAG_ENABLED: 'false'
+      MCP_AFTER_SALES_ENABLED: 'false'
+      SEMANTIC_CACHE_ENABLED: 'false'
+      REQUEST_LOCK_ENABLED: 'false'
+      V2_HIL_ENABLED: 'false'
+      GRAPH_CHECKPOINTER: memory
+      LANGSMITH_TRACING: 'false'
+      OTEL_ENABLED: 'false'
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_RANDOM_ROOT_PASSWORD: 'yes'
+          MYSQL_DATABASE: customer_service
+          MYSQL_USER: customer_service
+          MYSQL_PASSWORD: ci-only-password
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -ucustomer_service -pci-only-password"
+          --health-interval=5s --health-timeout=5s --health-retries=40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - run: python -m pip install -r requirements.lock
+      - run: python -m pip check && python scripts/check_dependencies.py
+      - run: ruff check --select E4,E7,E9,F src tests scripts mcp_services/after_sales_server/src
+      - run: python -m compileall -q src scripts mcp_services/after_sales_server/src
+      - run: PYTHONPATH=src python -c 'from customer_service_app.main import create_app; assert create_app().openapi()'
+      - run: PYTHONPATH=src python -m alembic upgrade head
+      - run: pytest -q
+      - run: python scripts/check_openapi.py
+      - run: python scripts/check_docs.py
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run api:types && git diff --exit-code -- src/api/schema.d.ts
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t customer-agent:ci .
+      - run: docker build -f mcp_services/after_sales_server/Dockerfile -t customer-agent-mcp:ci .
+      - run: docker run --rm customer-agent:ci python scripts/check_image.py
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan current public files (redacted)
+        run: docker run --rm -v "$PWD:/repo:ro" ghcr.io/gitleaks/gitleaks:v8.30.1 dir /repo --config /repo/.gitleaks.toml --redact --no-banner
+      - name: Scan Git history (redacted)
+        run: docker run --rm -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/repo -v "$PWD:/repo:ro" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --log-opts=--all --config /repo/.gitleaks.toml --redact --no-banner
+      - name: Reject tracked private files
+        run: |
+          python - <<'PY'
+          import subprocess
+          from pathlib import PurePosixPath
+          for raw in subprocess.check_output(['git','ls-files','-z']).decode().split('\0'):
+              p = PurePosixPath(raw)
+              assert not (p.name.startswith('.env') and not p.name.endswith('.example')), 'Private env is tracked'
+              assert not {'data','.venv','node_modules','.local-tools','logs'}.intersection(p.parts), 'Private artifact is tracked'
+          PY

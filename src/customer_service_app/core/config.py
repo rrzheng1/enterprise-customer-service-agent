@@ -1,0 +1,186 @@
+from __future__ import annotations
+
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from customer_service_app.core.exceptions import ConfigurationError
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables or `.env`."""
+
+    model_config = SettingsConfigDict(
+        env_file=PROJECT_ROOT / ".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    app_name: str = "Enterprise Customer Service"
+    runtime_env: str = "local"
+    log_level: str = "INFO"
+    api_prefix: str = "/api/v1"
+    allowed_origins: str = ""
+
+    llm_provider: str = "deepseek"
+    llm_api_key: str = ""
+    llm_base_url: str = ""
+    llm_model: str = ""
+    llm_temperature: float = 0.2
+    llm_timeout_seconds: int = 60
+
+    embedding_provider: str = "ollama"
+    embedding_api_key: str = ""
+    embedding_base_url: str = ""
+    embedding_model: str = ""
+    embedding_dimension: int = 1024
+    embedding_timeout_seconds: int = 60
+
+    database_url: str = ""
+
+    semantic_cache_enabled: bool = False
+    redis_url: str = ""
+    semantic_cache_ttl_seconds: int = 3600
+    semantic_cache_threshold: float = 0.90
+    request_lock_enabled: bool = False
+    request_lock_ttl_seconds: int = 120
+
+    semantic_rewrite_enabled: bool = True
+    semantic_rewrite_min_confidence: float = 0.55
+    semantic_rewrite_max_retries: int = 1
+
+    rag_enabled: bool = True
+    knowledge_corpus_version: str = "v1"
+    vector_store_provider: str = "qdrant"
+    qdrant_url: str = ""
+    qdrant_api_key: str = ""
+    qdrant_collection: str = "customer_service_knowledge"
+    milvus_uri: str = "http://127.0.0.1:19530"
+    milvus_token: str = ""
+    milvus_db_name: str = "default"
+    milvus_collection: str = "customer_service_knowledge"
+    milvus_metric_type: str = "COSINE"
+    rag_top_k: int = 5
+    rag_score_threshold: float = 0.35
+    retrieval_mode: str = "hybrid"
+    hybrid_candidate_multiplier: int = 3
+    hybrid_rrf_k: int = 60
+    hybrid_dense_weight: float = 1.0
+    hybrid_lexical_weight: float = 1.0
+    opensearch_enabled: bool = False
+    opensearch_url: str = ""
+    opensearch_api_key: str = ""
+    opensearch_username: str = ""
+    opensearch_password: str = ""
+    opensearch_index: str = "customer_service_knowledge"
+    opensearch_timeout_seconds: int = 10
+    opensearch_analyzer: str = "cjk"
+    rerank_enabled: bool = False
+    rerank_base_url: str = ""
+    rerank_api_key: str = ""
+    rerank_model: str = ""
+    rerank_timeout_seconds: int = 15
+    retrieval_quality_min_score: float = 0.35
+    retrieval_quality_min_chunks: int = 1
+    knowledge_chunk_max_chars: int = 900
+    knowledge_chunk_min_chars: int = 160
+    knowledge_chunk_overlap_chars: int = 120
+    knowledge_ingest_batch_size: int = 64
+
+    serpapi_key: str = ""
+    search_result_count: int = 5
+
+    v2_planning_enabled: bool = True
+    v2_hil_enabled: bool = True
+    plan_max_steps: int = 6
+    plan_max_llm_calls: int = 4
+    plan_max_tool_calls: int = 5
+    plan_parallel_execution_enabled: bool = True
+    plan_max_parallel_steps: int = 3
+    pending_action_ttl_seconds: int = 1800
+    # HIL / interrupt / resume 依赖跨进程恢复；生产默认使用 PostgreSQL。
+    graph_checkpointer: str = "postgres"
+    graph_checkpoint_postgres_url: str = ""
+    graph_checkpoint_setup: bool = True
+    graph_durability: str = "async"
+    graph_recursion_limit: int = 32
+
+    short_term_history_turns: int = 8
+    conversation_summary_threshold_messages: int = 20
+    long_term_memory_enabled: bool = True
+
+    cost_governance_enabled: bool = True
+    tenant_default_tier: str = "standard"
+    tenant_tier_map: str = ""
+    llm_model_basic: str = ""
+    llm_model_standard: str = ""
+    llm_model_premium: str = ""
+    llm_model_degraded: str = ""
+    basic_tenant_rag_top_k: int = 3
+    standard_tenant_rag_top_k: int = 5
+    premium_tenant_rag_top_k: int = 6
+    degraded_rag_top_k: int = 2
+    degraded_history_turns: int = 3
+    basic_daily_token_budget: int = 50_000
+    standard_daily_token_budget: int = 300_000
+    premium_daily_token_budget: int = 1_500_000
+    cost_warning_ratio: float = 0.8
+
+    mcp_after_sales_enabled: bool = False
+    mcp_after_sales_transport: str = "streamable_http"
+    mcp_after_sales_url: str = "http://127.0.0.1:8100/mcp"
+    mcp_after_sales_command: str = "python"
+    mcp_after_sales_args: str = "scripts/run_after_sales_mcp_server.py"
+    mcp_timeout_seconds: int = 20
+    mcp_approval_signing_secret: str = ""
+    mcp_approval_token_ttl_seconds: int = 120
+    mcp_approval_issuer: str = "customer-service-agent"
+    # MCP HTTP 服务身份认证。审批 token 只代表一次业务批准，不能替代服务身份。
+    mcp_service_auth_enabled: bool = True
+    mcp_service_auth_token: str = ""
+    mcp_service_auth_secret: str = ""
+    mcp_service_auth_issuer: str = "customer-service-agent"
+    mcp_service_auth_audience: str = ""
+    mcp_service_auth_required_scope: str = "mcp:invoke"
+    # 每次 MCP 调用都签名租户、用户和工具，避免服务端只相信明文参数。
+    mcp_call_signing_secret: str = ""
+    mcp_call_context_ttl_seconds: int = 60
+    mcp_tool_contract_cache_ttl_seconds: int = 300
+
+    metrics_enabled: bool = True
+    langsmith_tracing: bool = False
+    langsmith_api_key: str = ""
+    langsmith_project: str = "enterprise-customer-service-agent-v2"
+    langsmith_endpoint: str = "https://api.smith.langchain.com"
+    otel_enabled: bool = False
+    otel_service_name: str = "customer-service-agent"
+    otel_exporter_otlp_endpoint: str = "http://127.0.0.1:4318"
+
+    jwt_secret_key: str = ""
+    jwt_algorithm: str = "HS256"
+    jwt_issuer: str = ""
+    jwt_audience: str = ""
+    access_token_expire_minutes: int = 60
+    security_enabled: bool = False
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """把逗号分隔的跨域白名单字符串转成列表。"""
+        return [item.strip() for item in self.allowed_origins.split(",") if item.strip()]
+
+    def require(self, name: str, value: str | None) -> str:
+        """读取必填配置；为空就抛出清晰错误。"""
+        if not value or not value.strip():
+            raise ConfigurationError(f"Missing required configuration: {name}")
+        return value
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Return cached application settings."""
+    return Settings()

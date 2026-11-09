@@ -1,0 +1,641 @@
+from __future__ import annotations
+
+import json
+import re
+import uuid
+from typing import Any, Literal
+
+from jsonschema import ValidationError as JsonSchemaValidationError
+from jsonschema import validate as validate_json_schema
+from pydantic import BaseModel, Field, ValidationError
+
+from customer_service_app.domain.planning import AgentPlan, PlanStep, StepCondition, OutputReference
+from customer_service_app.domain.query_rewrite import QueryRewriteResult
+from customer_service_app.domain.schemas import ChatRequest
+from customer_service_app.infrastructure.llm.base import LLMClient, LLMResponse
+from customer_service_app.observability.metrics import PLANNER_RUNS
+from customer_service_app.services.question_router import QuestionRouter
+from customer_service_app.services.tool_registry import ToolRegistry, ToolSpec
+
+
+class PlannerStepDraft(BaseModel):
+    """Untrusted planner output before backend governance is applied."""
+
+    step_id: str = ""
+    title: str
+    goal: str
+    action_type: Literal["rag", "tool", "llm", "confirm", "handoff"]
+    tool_name: str | None = None
+    depends_on: list[str] = Field(default_factory=list)
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    conditions: list[StepCondition] = Field(default_factory=list, max_length=8)
+    argument_refs: dict[str, OutputReference] = Field(default_factory=dict, max_length=16)
+    max_attempts: int = Field(default=1, ge=1, le=2)
+
+
+class PlannerDraft(BaseModel):
+    steps: list[PlannerStepDraft] = Field(min_length=1)
+
+
+class PlannerService:
+    """Generate bounded structured plans only for genuinely complex requests."""
+
+    def __init__(
+        self,
+        *,
+        tool_registry: ToolRegistry,
+        max_steps: int = 6,
+        max_llm_calls: int = 2,
+        question_router: QuestionRouter | None = None,
+    ) -> None:
+        self._tool_registry = tool_registry
+        self._max_steps = max_steps
+        self._max_llm_calls = max(int(max_llm_calls), 1)
+        self._question_router = question_router or QuestionRouter()
+
+    def needs_plan(self, request: ChatRequest, *, resolved_question: str | None = None) -> bool:
+        """Use a zero-token gate so simple questions never pay planner cost."""
+        return self._question_router.should_plan(
+            request,
+            resolved_question=resolved_question,
+        )
+
+    async def build_plan(
+        self,
+        *,
+        request: ChatRequest,
+        conversation_id: str,
+        llm_client: LLMClient,
+        model: str,
+        resolved_question: str | None = None,
+        memory_context: dict[str, Any] | None = None,
+        rewrite_result: QueryRewriteResult | dict[str, Any] | None = None,
+    ) -> tuple[AgentPlan | None, LLMResponse | None]:
+        """Generate and validate a plan, falling back deterministically on malformed output."""
+        goal = (resolved_question or request.question).strip()
+        order_id = self._extract_order_id(goal)
+        explicit_refund = (bool(re.search(r"(?:请|帮我|我要|我想).*?(?:创建|提交|申请).{0,4}(?:退款|退货)", request.question))
+                           and not any(word in request.question for word in ("如何", "什么", "流程", "步骤")))
+        if (order_id and (explicit_refund or any(word in request.question for word in ("如果", "符合", "能不能")))
+                and any(word in request.question for word in ("退款", "退货"))
+                and "check_refund_eligibility" in self._tool_registry.names()):
+            steps = [
+                PlanStep(step_id="s1", title="查询当前用户订单", goal="核实订单归属与状态", action_type="tool",
+                         tool_name="query_order_status", arguments={"order_id": order_id}, max_attempts=2),
+                PlanStep(step_id="s2", title="核实申请条件", goal="检查业务审核与证据", action_type="tool",
+                         tool_name="check_refund_eligibility", depends_on=["s1"], arguments={"order_id": order_id},
+                         conditions=[StepCondition(step_id="s1", path="business_status", value="satisfied")]),
+                PlanStep(step_id="s3", title="符合条件后准备退款确认", goal="只有业务条件满足才请求批准",
+                         action_type="confirm", tool_name="create_refund_case", depends_on=["s1", "s2"],
+                         conditions=[StepCondition(step_id="s2", path="data.allowed", value=True)],
+                         arguments={"order_id": order_id, "reason": request.question, "refund_type": "return_refund"},
+                         requires_confirmation=True),
+            ]
+            if "否则" in request.question and "人工" in request.question:
+                for index, (source, path, value) in enumerate([
+                    ("s1", "data.found", False), ("s2", "data.allowed", False),
+                ], start=4):
+                    steps.append(PlanStep(step_id=f"s{index}", title="不符合条件时转人工确认", goal="由人工补充审核",
+                        action_type="confirm", tool_name="transfer_to_human", depends_on=[source],
+                        conditions=[StepCondition(step_id=source, path=path, value=value)], requires_confirmation=True,
+                        arguments={"reason": request.question, "priority": "high"}))
+            return AgentPlan(plan_id=str(uuid.uuid4()), conversation_id=conversation_id,
+                             user_goal=goal, steps=steps[:self._max_steps], max_steps=self._max_steps), None
+        if (not self.needs_plan(request, resolved_question=goal)
+                and not self._question_router.is_explicit_handoff(request.question)):
+            PLANNER_RUNS.labels(result="bypass").inc()
+            return None, None
+        if (self._question_router.is_explicit_handoff(request.question)
+                and "transfer_to_human" in self._tool_registry.names()):
+            # A direct handoff request is already unambiguous. Keep the normal
+            # confirmation gate instead of letting a model replace it with advice.
+            step = self._confirmation_step(
+                steps=[], title="准备转人工确认", tool_name="transfer_to_human",
+                arguments={"reason": request.question, "priority": "high"}, order_id=None,
+            )
+            return AgentPlan(plan_id=str(uuid.uuid4()), conversation_id=conversation_id,
+                             user_goal=goal, steps=[step], max_steps=self._max_steps), None
+        rewrite = (
+            QueryRewriteResult.model_validate(rewrite_result)
+            if rewrite_result is not None
+            else None
+        )
+
+        tools = [
+            {
+                "name": tool.name,
+                "description": tool.description,
+                "requires_confirmation": tool.requires_confirmation,
+                "parameters": tool.parameters,
+            }
+            for tool in self._registered_tools()
+        ]
+
+        submit_plan_tool = {
+            "type": "function",
+            "function": {
+                "name": "submit_plan",
+                "description": "提交经过依赖排序的有界执行计划",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "steps": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": self._max_steps,
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "step_id": {"type": "string"},
+                                    "title": {"type": "string"},
+                                    "goal": {"type": "string"},
+                                    "action_type": {
+                                        "type": "string",
+                                        "enum": ["rag", "tool", "llm", "confirm", "handoff"],
+                                    },
+                                    "tool_name": {"type": ["string", "null"]},
+                                    "depends_on": {
+                                        "type": "array",
+                                        "items": {"type": "string"},
+                                    },
+                                    "arguments": {"type": "object"},
+                                    "conditions": {"type": "array", "items": StepCondition.model_json_schema()},
+                                    "argument_refs": {"type": "object", "additionalProperties": OutputReference.model_json_schema()},
+                                    "max_attempts": {"type": "integer", "minimum": 1, "maximum": 2},
+                                },
+                                "required": [
+                                    "step_id",
+                                    "title",
+                                    "goal",
+                                    "action_type",
+                                    "depends_on",
+                                    "arguments",
+                                ],
+                                "additionalProperties": False,
+                            },
+                        }
+                    },
+                    "required": ["steps"],
+                    "additionalProperties": False,
+                },
+            },
+        }
+        messages: list[dict[str, Any]] = [
+            {
+                "role": "system",
+                "content": (
+                    "你是客户服务任务规划器。不要回答用户，只调用 submit_plan。"
+                    "计划必须有界、可执行，禁止重复工具；查询先于写操作；"
+                    "退款、补偿、换货、转人工等写操作使用 confirm 或 handoff；"
+                    "只有存在真实数据依赖时才填写 depends_on，无依赖步骤可由后端并行执行。"
+                    "conditions 只支持 eq/ne/in/exists，path 只能引用依赖步骤的 data、business_status、execution_status。"
+                    "结果引用放入 argument_refs；不得生成 Python 表达式；读工具最多重试两次，写操作不能盲目重试。"
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {
+                        "original_question": request.question,
+                        "standalone_question": goal,
+                        "verified_entities": rewrite.entities if rewrite else {},
+                        "missing_fields": rewrite.missing_fields if rewrite else [],
+                        "controlled_context": self._planner_context(memory_context),
+                        "max_steps": self._max_steps,
+                        "available_tools": tools,
+                    },
+                    ensure_ascii=False,
+                ),
+            },
+        ]
+
+        try:
+            response = await llm_client.chat(
+                messages,
+                model=model,
+                temperature=0,
+                tools=[submit_plan_tool],
+                tool_choice={"type": "function", "function": {"name": "submit_plan"}},
+            )
+        except Exception:
+            PLANNER_RUNS.labels(result="rule_fallback").inc()
+            return (
+                self.build_rule_based_plan(
+                    request=request,
+                    conversation_id=conversation_id,
+                    resolved_question=goal,
+                ),
+                None,
+            )
+
+        validation_error: str | None = None
+        prompt_tokens = 0
+        completion_tokens = 0
+        total_tokens = 0
+        for attempt in range(self._max_llm_calls):
+            prompt_tokens += response.prompt_tokens
+            completion_tokens += response.completion_tokens
+            total_tokens += response.total_tokens
+            try:
+                payload = self._planner_payload(response)
+                plan = self._normalize_llm_plan(
+                    payload=payload,
+                    request=request,
+                    conversation_id=conversation_id,
+                    resolved_question=goal,
+                )
+                response.prompt_tokens = prompt_tokens
+                response.completion_tokens = completion_tokens
+                response.total_tokens = total_tokens
+                PLANNER_RUNS.labels(
+                    result="generated" if attempt == 0 else "repaired"
+                ).inc()
+                return plan, response
+            except (
+                json.JSONDecodeError,
+                JsonSchemaValidationError,
+                ValidationError,
+                TypeError,
+                ValueError,
+            ) as exc:
+                validation_error = str(exc)
+                if attempt + 1 >= self._max_llm_calls:
+                    break
+                repair_messages = [
+                    *messages,
+                    {
+                        "role": "system",
+                        "content": (
+                            "上一次计划未通过后端校验。请修正后重新调用 submit_plan。"
+                            f"校验错误：{validation_error[:800]}"
+                        ),
+                    },
+                ]
+                try:
+                    response = await llm_client.chat(
+                        repair_messages,
+                        model=model,
+                        temperature=0,
+                        tools=[submit_plan_tool],
+                        tool_choice={"type": "function", "function": {"name": "submit_plan"}},
+                    )
+                except Exception:
+                    break
+
+        plan = self.build_rule_based_plan(
+            request=request,
+            conversation_id=conversation_id,
+            resolved_question=goal,
+        )
+        response.prompt_tokens = prompt_tokens
+        response.completion_tokens = completion_tokens
+        response.total_tokens = total_tokens
+        PLANNER_RUNS.labels(result="rule_fallback").inc()
+        return plan, response
+
+
+    def _normalize_llm_plan(
+        self,
+        *,
+        payload: dict[str, Any],
+        request: ChatRequest,
+        conversation_id: str,
+        resolved_question: str | None = None,
+    ) -> AgentPlan:
+        draft = PlannerDraft.model_validate(payload)
+        raw_steps = draft.steps[: self._max_steps]
+
+        seen_tools: set[tuple[str, str]] = set()
+        original_ids: list[str] = []
+        draft_by_id: dict[str, PlannerStepDraft] = {}
+        normalized_fields: dict[str, tuple[str | None, str, bool]] = {}
+        dependencies_by_id: dict[str, list[str]] = {}
+
+        for index, item in enumerate(raw_steps, start=1):
+            original_id = item.step_id.strip() or f"step-{index}"
+            if original_id in draft_by_id:
+                raise ValueError("Planner step_id must be unique")
+            original_ids.append(original_id)
+            draft_by_id[original_id] = item
+
+        for original_id in original_ids:
+            item = draft_by_id[original_id]
+            tool_name = item.tool_name
+            action_type = item.action_type
+            arguments = item.arguments
+            requires_confirmation = False
+
+            if tool_name:
+                tool_name = str(tool_name)
+                if tool_name not in self._tool_registry.names():
+                    raise ValueError(f"Planner referenced unknown tool: {tool_name}")
+                tool = self._tool_registry.require(tool_name)
+                schema = json.loads(json.dumps(tool.parameters))
+                if set(item.argument_refs) - set(schema.get("properties", {})):
+                    raise ValueError("Unknown output argument reference")
+                schema["required"] = [key for key in schema.get("required", []) if key not in item.argument_refs]
+                validate_json_schema(instance=arguments, schema=schema)
+                requires_confirmation = tool.requires_confirmation
+                action_type = "confirm" if requires_confirmation else "tool"
+                duplicate_key = (
+                    tool_name,
+                    json.dumps({"arguments": arguments, "conditions": [c.model_dump() for c in item.conditions],
+                                "refs": {k: v.model_dump() for k, v in item.argument_refs.items()}}, sort_keys=True, ensure_ascii=False),
+                )
+                if duplicate_key in seen_tools:
+                    raise ValueError(f"Planner duplicated tool call: {tool_name}")
+                seen_tools.add(duplicate_key)
+            elif action_type not in {"rag", "llm"}:
+                raise ValueError(f"Planner action {action_type} requires tool_name")
+
+            unknown_dependencies = [
+                value for value in item.depends_on if value not in draft_by_id
+            ]
+            if unknown_dependencies:
+                raise ValueError(f"Unknown plan dependencies: {unknown_dependencies}")
+            if original_id in item.depends_on:
+                raise ValueError("Plan step may not depend on itself")
+            if any(ref.step_id not in item.depends_on for ref in [*item.conditions, *item.argument_refs.values()]):
+                raise ValueError("Conditions and output references must reference dependencies")
+            dependencies_by_id[original_id] = list(dict.fromkeys(item.depends_on))
+            normalized_fields[original_id] = (
+                tool_name,
+                action_type,
+                requires_confirmation,
+            )
+
+        ordered_ids = self._topological_order(
+            original_ids=original_ids,
+            dependencies_by_id=dependencies_by_id,
+        )
+        id_mapping = {
+            original_id: f"s{index}"
+            for index, original_id in enumerate(ordered_ids, start=1)
+        }
+        steps: list[PlanStep] = []
+        for original_id in ordered_ids:
+            item = draft_by_id[original_id]
+            tool_name, action_type, requires_confirmation = normalized_fields[original_id]
+            steps.append(
+                PlanStep(
+                    step_id=id_mapping[original_id],
+                    title=item.title or f"步骤 {len(steps) + 1}",
+                    goal=item.goal or resolved_question or request.question,
+                    action_type=action_type,
+                    tool_name=tool_name,
+                    depends_on=[
+                        id_mapping[value] for value in dependencies_by_id[original_id]
+                    ],
+                    requires_confirmation=requires_confirmation,
+                    arguments=item.arguments,
+                    conditions=[condition.model_copy(update={"step_id": id_mapping[condition.step_id]}) for condition in item.conditions],
+                    argument_refs={key: reference.model_copy(update={"step_id": id_mapping[reference.step_id]})
+                                   for key, reference in item.argument_refs.items()},
+                    max_attempts=item.max_attempts,
+                )
+            )
+
+        if not steps:
+            raise ValueError("Planner output contains no executable step")
+
+        return AgentPlan(
+            plan_id=str(uuid.uuid4()),
+            conversation_id=conversation_id,
+            user_goal=resolved_question or request.question,
+            steps=steps,
+            max_steps=self._max_steps,
+        )
+
+    def build_rule_based_plan(
+        self,
+        *,
+        request: ChatRequest,
+        conversation_id: str,
+        resolved_question: str | None = None,
+    ) -> AgentPlan | None:
+        """Deterministic fallback used when planner output cannot pass validation."""
+        if not self.needs_plan(request, resolved_question=resolved_question):
+            return None
+
+        question = resolved_question or request.question
+        order_id = self._extract_order_id(question)
+        steps: list[PlanStep] = []
+
+        if order_id and "query_order_status" in self._tool_registry.names():
+            steps.append(
+                PlanStep(
+                    step_id="s1",
+                    title="查询订单状态",
+                    goal="确认订单归属和履约状态",
+                    action_type="tool",
+                    tool_name="query_order_status",
+                    arguments={"order_id": order_id},
+                )
+            )
+
+        steps.append(
+            PlanStep(
+                step_id=f"s{len(steps) + 1}",
+                title="检索售后政策",
+                goal="检索与当前诉求匹配的售后规则",
+                action_type="rag",
+                depends_on=["s1"] if order_id else [],
+            )
+        )
+
+        requested_actions: list[str] = []
+        if self._contains_any(question, ("退款", "退货", "退掉")):
+            requested_actions.append("refund")
+        if self._contains_any(question, ("补偿", "赔偿", "价保", "保价", "差价", "优惠券")):
+            requested_actions.append("compensation")
+        if self._contains_any(question, ("换货", "补发", "重新发")):
+            requested_actions.append("exchange")
+        if self._contains_any(question, ("人工", "客服", "投诉", "举报", "12315")):
+            requested_actions.append("handoff")
+
+        if len(requested_actions) > 1:
+            steps.append(
+                PlanStep(
+                    step_id=f"s{len(steps) + 1}",
+                    title="确认后续处理分支",
+                    goal="基于查询结果向用户说明可选方案，并在执行副作用前再次确认",
+                    action_type="llm",
+                    depends_on=[step.step_id for step in steps],
+                )
+            )
+        elif requested_actions and requested_actions[0] in {"refund", "compensation", "exchange"} and not order_id:
+            steps.append(
+                PlanStep(
+                    step_id=f"s{len(steps) + 1}",
+                    title="补充业务参数",
+                    goal="向用户询问订单号，未获得订单归属信息前不创建售后工单",
+                    action_type="llm",
+                    depends_on=[step.step_id for step in steps],
+                )
+            )
+        elif requested_actions == ["refund"]:
+            steps.append(
+                self._confirmation_step(
+                    steps=steps,
+                    title="准备退款确认",
+                    tool_name="create_refund_case",
+                    arguments={
+                        "order_id": order_id or "",
+                        "reason": question,
+                        "refund_type": "return_refund",
+                    },
+                    order_id=order_id,
+                )
+            )
+        elif requested_actions == ["compensation"]:
+            steps.append(
+                self._confirmation_step(
+                    steps=steps,
+                    title="准备补偿确认",
+                    tool_name="create_compensation_case",
+                    arguments={
+                        "order_id": order_id or "",
+                        "reason": question,
+                        "compensation_type": "partial_refund",
+                    },
+                    order_id=order_id,
+                )
+            )
+        elif requested_actions == ["exchange"]:
+            steps.append(
+                self._confirmation_step(
+                    steps=steps,
+                    title="准备换货确认",
+                    tool_name="create_exchange_case",
+                    arguments={
+                        "order_id": order_id or "",
+                        "reason": question,
+                    },
+                    order_id=order_id,
+                )
+            )
+        elif requested_actions == ["handoff"]:
+            steps.append(
+                self._confirmation_step(
+                    steps=steps,
+                    title="准备转人工确认",
+                    tool_name="transfer_to_human",
+                    arguments={"reason": question, "priority": "high"},
+                    order_id=None,
+                )
+            )
+
+        return AgentPlan(
+            plan_id=str(uuid.uuid4()),
+            conversation_id=conversation_id,
+            user_goal=question,
+            steps=steps[: self._max_steps],
+            max_steps=self._max_steps,
+        )
+
+    @staticmethod
+    def _extract_json(content: str) -> str:
+        value = content.strip()
+        if value.startswith("```"):
+            value = re.sub(r"^```(?:json)?\s*", "", value)
+            value = re.sub(r"\s*```$", "", value)
+        return value
+
+    def _planner_payload(self, response: LLMResponse) -> dict[str, Any]:
+        """Read forced tool arguments first, with content JSON as provider fallback."""
+        for call in response.tool_calls:
+            if call.name == "submit_plan":
+                value = json.loads(call.arguments or "{}")
+                if not isinstance(value, dict):
+                    raise ValueError("submit_plan arguments must be an object")
+                return value
+        raw = self._extract_json(response.content)
+        value = json.loads(raw)
+        if not isinstance(value, dict):
+            raise ValueError("Planner output must be a JSON object")
+        return value
+
+    @staticmethod
+    def _extract_order_id(question: str) -> str | None:
+        match = re.search(r"(?<![A-Za-z0-9])\d{8,24}(?![A-Za-z0-9])", question)
+        return match.group(0) if match else None
+
+    @staticmethod
+    def _contains_any(text: str, words: tuple[str, ...]) -> bool:
+        return any(word in text for word in words)
+
+    @staticmethod
+    def _confirmation_step(
+        *,
+        steps: list[PlanStep],
+        title: str,
+        tool_name: str,
+        arguments: dict[str, Any],
+        order_id: str | None,
+    ) -> PlanStep:
+        return PlanStep(
+            step_id=f"s{len(steps) + 1}",
+            title=title,
+            goal="准备副作用操作并等待用户确认",
+            action_type="confirm",
+            tool_name=tool_name,
+
+            depends_on=["s1"] if order_id else [],
+            requires_confirmation=True,
+            arguments=arguments,
+        )
+
+    def _registered_tools(self) -> list[ToolSpec]:
+        return [
+            self._tool_registry.require(name)
+            for name in sorted(self._tool_registry.names())
+        ]
+
+    @staticmethod
+    def _topological_order(
+        *,
+        original_ids: list[str],
+        dependencies_by_id: dict[str, list[str]],
+    ) -> list[str]:
+        """按依赖关系排序步骤；无可执行节点时说明计划存在环。"""
+
+        ordered: list[str] = []
+        completed: set[str] = set()
+        remaining = set(original_ids)
+        while remaining:
+            ready = [
+                step_id
+                for step_id in original_ids
+                if step_id in remaining
+                and set(dependencies_by_id[step_id]).issubset(completed)
+            ]
+            if not ready:
+                raise ValueError("Plan contains cyclic dependencies")
+            ordered.extend(ready)
+            completed.update(ready)
+            remaining.difference_update(ready)
+        return ordered
+
+    @staticmethod
+    def _planner_context(memory_context: dict[str, Any] | None) -> dict[str, Any]:
+        """只向 Planner 暴露待办动作和已验证记忆，不重复发送整段聊天历史。"""
+
+        if not memory_context:
+            return {}
+        memories = [
+            item
+            for item in memory_context.get("memories", [])
+            if isinstance(item, dict)
+            and item.get("verification_status")
+            in {
+                "explicit_user",
+                "verified_tool",
+                "business_system",
+                "human_confirmed",
+                "risk_engine",
+            }
+        ]
+        return {
+            "pending_actions": list(memory_context.get("pending_actions", []))[:3],
+            "verified_memories": memories[:5],
+        }

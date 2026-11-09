@@ -1,0 +1,4534 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Enterprise Customer Service",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health/live": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Live",
+        "description": "存活检查：只说明应用进程还活着。",
+        "operationId": "live_health_live_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Ready",
+        "description": "就绪检查：检查关键配置是否已经填写。",
+        "operationId": "ready_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Ready Health Ready Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ops/api/runtime": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Runtime Config",
+        "description": "Return a safe runtime configuration snapshot for the ops console.",
+        "operationId": "runtime_config_ops_api_runtime_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeConfigView"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/ops/api/tenant-strategy": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Tenant Strategy",
+        "description": "Preview the selected cost strategy for one tenant.\n\n`used_tokens` is optional and mainly used for运营验证：传入不同 token 用量，\n可以观察 basic/standard/premium 在预算接近阈值时如何降级。",
+        "operationId": "tenant_strategy_ops_api_tenant_strategy_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "used_tokens",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Used Tokens"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantStrategyView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ops/api/pending-actions": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Pending Action Summary",
+        "description": "Return pending confirmation summary for one tenant/user.",
+        "operationId": "pending_action_summary_ops_api_pending_actions_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingActionSummaryView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ops/api/conversations": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Operations Conversations",
+        "operationId": "operations_conversations_ops_api_conversations_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 60,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationView"
+                  },
+                  "title": "Response Operations Conversations Ops Api Conversations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ops/api/runs": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Operations Runs",
+        "operationId": "operations_runs_ops_api_runs_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "conversation_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 40,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RunSummaryView"
+                  },
+                  "title": "Response Operations Runs Ops Api Runs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/session": {
+      "get": {
+        "tags": [
+          "workspace"
+        ],
+        "summary": "Current Session",
+        "operationId": "current_session_api_v1_session_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "customer",
+                "operations"
+              ],
+              "type": "string",
+              "default": "customer",
+              "title": "Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{conversation_id}/workspace": {
+      "get": {
+        "tags": [
+          "workspace"
+        ],
+        "summary": "Conversation Workspace",
+        "operationId": "conversation_workspace_api_v1_conversations__conversation_id__workspace_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationWorkspaceView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ui/config": {
+      "get": {
+        "tags": [
+          "frontend"
+        ],
+        "summary": "Ui Config",
+        "operationId": "ui_config_ui_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UIConfigView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chat": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Chat",
+        "description": "返回完整回答和执行轨迹。",
+        "operationId": "chat_api_v1_chat_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chat/stream": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Chat Stream",
+        "description": "流式聊天接口，返回 text/event-stream。",
+        "operationId": "chat_stream_api_v1_chat_stream_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SSE frames; each data field is a StreamEvent JSON object",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamEvent"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamEvent"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations": {
+      "post": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Create Conversation",
+        "description": "创建新会话。\n\n这里没有直接操作数据库，而是交给 `ConversationService`，\n保持 API 层薄、业务层清晰。",
+        "operationId": "create_conversation_api_v1_conversations_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversationCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "List Conversations",
+        "description": "查询某个用户的会话列表。",
+        "operationId": "list_conversations_api_v1_conversations_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationView"
+                  },
+                  "title": "Response List Conversations Api V1 Conversations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{conversation_id}/messages": {
+      "get": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "List Conversation Messages",
+        "description": "Restore one owned conversation in the customer-service workspace.",
+        "operationId": "list_conversation_messages_api_v1_conversations__conversation_id__messages_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationMessageView"
+                  },
+                  "title": "Response List Conversation Messages Api V1 Conversations  Conversation Id  Messages Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/confirmations/{confirmation_id}": {
+      "get": {
+        "tags": [
+          "confirmations"
+        ],
+        "summary": "Get Confirmation",
+        "description": "Load the pending action that owns the interrupted graph thread.",
+        "operationId": "get_confirmation_api_v1_confirmations__confirmation_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "confirmation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Confirmation Id"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingActionView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/confirmations/{confirmation_id}/approve": {
+      "post": {
+        "tags": [
+          "confirmations"
+        ],
+        "summary": "Approve Confirmation",
+        "description": "Resume LangGraph with an approval decision.",
+        "operationId": "approve_confirmation_api_v1_confirmations__confirmation_id__approve_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "confirmation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Confirmation Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmationDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmationDecisionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/confirmations/{confirmation_id}/reject": {
+      "post": {
+        "tags": [
+          "confirmations"
+        ],
+        "summary": "Reject Confirmation",
+        "description": "Resume LangGraph with a rejection decision.",
+        "operationId": "reject_confirmation_api_v1_confirmations__confirmation_id__reject_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "confirmation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Confirmation Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmationDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmationDecisionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent-runs/{run_id}": {
+      "get": {
+        "tags": [
+          "agent-runs"
+        ],
+        "summary": "Get Agent Run",
+        "description": "Return persisted trace information for one Agent request.",
+        "operationId": "get_agent_run_api_v1_agent_runs__run_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRunView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/graph/threads/{thread_id}": {
+      "get": {
+        "tags": [
+          "graph"
+        ],
+        "summary": "Get Graph Thread",
+        "description": "Inspect a sanitized LangGraph checkpoint for operations and debugging.",
+        "operationId": "get_graph_thread_api_v1_graph_threads__thread_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphStateView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/human-support/queue": {
+      "get": {
+        "tags": [
+          "human-support"
+        ],
+        "summary": "List Handoff Queue",
+        "operationId": "list_handoff_queue_api_v1_human_support_queue_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HumanHandoffView"
+                  },
+                  "title": "Response List Handoff Queue Api V1 Human Support Queue Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/human-support/{handoff_id}/assign": {
+      "post": {
+        "tags": [
+          "human-support"
+        ],
+        "summary": "Assign Handoff",
+        "operationId": "assign_handoff_api_v1_human_support__handoff_id__assign_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "handoff_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Handoff Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HumanAssignmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanHandoffView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/human-support/{handoff_id}/messages": {
+      "post": {
+        "tags": [
+          "human-support"
+        ],
+        "summary": "Send Human Message",
+        "operationId": "send_human_message_api_v1_human_support__handoff_id__messages_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "handoff_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Handoff Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HumanMessageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanHandoffView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/human-support/{handoff_id}/resolution": {
+      "post": {
+        "tags": [
+          "human-support"
+        ],
+        "summary": "Submit Human Resolution",
+        "operationId": "submit_human_resolution_api_v1_human_support__handoff_id__resolution_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "handoff_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Handoff Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HumanResolutionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanHandoffView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/human-support/{handoff_id}/resolution/confirm": {
+      "post": {
+        "tags": [
+          "human-support"
+        ],
+        "summary": "Confirm Human Resolution",
+        "operationId": "confirm_human_resolution_api_v1_human_support__handoff_id__resolution_confirm_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "handoff_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Handoff Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HumanResolutionConfirmationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanHandoffView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memories": {
+      "get": {
+        "tags": [
+          "memories"
+        ],
+        "summary": "List Memories",
+        "description": "List active long-term memories retained for one user.",
+        "operationId": "list_memories_api_v1_memories_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CustomerMemoryView"
+                  },
+                  "title": "Response List Memories Api V1 Memories Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memories/{memory_id}": {
+      "patch": {
+        "tags": [
+          "memories"
+        ],
+        "summary": "Update Memory",
+        "description": "Correct one owned memory and mark the value as explicitly user-verified.",
+        "operationId": "update_memory_api_v1_memories__memory_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "memory_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Memory Id"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerMemoryView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "memories"
+        ],
+        "summary": "Delete Memory",
+        "description": "Delete one owned long-term memory.",
+        "operationId": "delete_memory_api_v1_memories__memory_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "memory_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Memory Id"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memories/preference/current": {
+      "get": {
+        "tags": [
+          "memories"
+        ],
+        "summary": "Get Memory Preference",
+        "description": "Return the effective long-term memory consent.",
+        "operationId": "get_memory_preference_api_v1_memories_preference_current_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryPreferenceView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "memories"
+        ],
+        "summary": "Update Memory Preference",
+        "description": "Enable or disable future long-term memory reads and writes.",
+        "operationId": "update_memory_preference_api_v1_memories_preference_current_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryPreferenceUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryPreferenceView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memories/expired/cleanup": {
+      "delete": {
+        "tags": [
+          "memories"
+        ],
+        "summary": "Cleanup Expired Memories",
+        "description": "Physically remove expired memories owned by the current user.",
+        "operationId": "cleanup_expired_memories_api_v1_memories_expired_cleanup_delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryCleanupView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AgentPlan": {
+        "properties": {
+          "plan_id": {
+            "type": "string",
+            "title": "Plan Id"
+          },
+          "conversation_id": {
+            "type": "string",
+            "title": "Conversation Id"
+          },
+          "user_goal": {
+            "type": "string",
+            "title": "User Goal"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "planned"
+            ],
+            "title": "Decision",
+            "default": "planned"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/PlanStep"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "max_steps": {
+            "type": "integer",
+            "title": "Max Steps",
+            "default": 6
+          }
+        },
+        "type": "object",
+        "required": [
+          "plan_id",
+          "conversation_id",
+          "user_goal"
+        ],
+        "title": "AgentPlan",
+        "description": "Structured execution plan generated for complex requests."
+      },
+      "AgentRunStepView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "input": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Input"
+          },
+          "output": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Output"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "stage",
+          "name",
+          "status"
+        ],
+        "title": "AgentRunStepView",
+        "description": "One persisted trace step for an Agent run."
+      },
+      "AgentRunView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "total_tokens": {
+            "type": "integer",
+            "title": "Total Tokens",
+            "default": 0
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/AgentRunStepView"
+            },
+            "type": "array",
+            "title": "Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "user_id",
+          "status"
+        ],
+        "title": "AgentRunView",
+        "description": "Trace view for one Agent request."
+      },
+      "ChatMessage": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "system",
+              "user",
+              "assistant",
+              "tool"
+            ],
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "ChatMessage",
+        "description": "对话消息。"
+      },
+      "ChatRequest": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id",
+            "description": "租户或业务线 ID",
+            "default": "default"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id",
+            "description": "当前用户 ID"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id",
+            "description": "为空时自动创建会话"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id",
+            "description": "LangGraph checkpoint 线程 ID"
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "type": "array",
+            "title": "History"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "question"
+        ],
+        "title": "ChatRequest",
+        "description": "聊天请求。"
+      },
+      "ChatResponse": {
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "title": "Conversation Id"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          },
+          "answer": {
+            "type": "string",
+            "title": "Answer"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "completed"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "cache_hit": {
+            "type": "boolean",
+            "title": "Cache Hit",
+            "default": false
+          },
+          "query_rewrite": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Query Rewrite"
+          },
+          "route_decision": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Route Decision"
+          },
+          "retrieval_quality": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Retrieval Quality"
+          },
+          "knowledge": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeChunk"
+            },
+            "type": "array",
+            "title": "Knowledge"
+          },
+          "tool_calls": {
+            "items": {
+              "$ref": "#/components/schemas/ToolCallView"
+            },
+            "type": "array",
+            "title": "Tool Calls"
+          },
+          "tool_results": {
+            "items": {
+              "$ref": "#/components/schemas/ToolResultView"
+            },
+            "type": "array",
+            "title": "Tool Results"
+          },
+          "pending_confirmation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PendingActionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "plan_execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanExecutionResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trace": {
+            "items": {
+              "$ref": "#/components/schemas/ChatTraceStep"
+            },
+            "type": "array",
+            "title": "Trace"
+          },
+          "service_mode": {
+            "type": "string",
+            "title": "Service Mode",
+            "default": "bot"
+          },
+          "human_handoff": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HumanHandoffView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "conversation_id",
+          "answer"
+        ],
+        "title": "ChatResponse",
+        "description": "聊天接口的响应体。\n\nanswer 是最终给用户看的回复；knowledge、tool_calls、tool_results、trace\n是给开发者和运营验证链路用的证据。"
+      },
+      "ChatTraceStep": {
+        "properties": {
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stage",
+          "detail"
+        ],
+        "title": "ChatTraceStep",
+        "description": "一次请求中的执行轨迹。\n\n运营测试台右侧的 Trace 面板就是展示这个结构。\n它用于解释请求走到了 cache、rag、tools 等哪个阶段。"
+      },
+      "CompletedPayload": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "answer": {
+            "type": "string",
+            "title": "Answer"
+          },
+          "persisted": {
+            "type": "boolean",
+            "title": "Persisted",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "answer"
+        ],
+        "title": "CompletedPayload"
+      },
+      "ConfirmationDecisionRequest": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id",
+            "default": "default"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "ConfirmationDecisionRequest",
+        "description": "Request body for approve/reject confirmation APIs."
+      },
+      "ConfirmationDecisionResponse": {
+        "properties": {
+          "confirmation_id": {
+            "type": "string",
+            "title": "Confirmation Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "executed",
+              "expired",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "result": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Result"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "answer": {
+            "type": "string",
+            "title": "Answer",
+            "default": ""
+          },
+          "graph_status": {
+            "type": "string",
+            "title": "Graph Status",
+            "default": "completed"
+          },
+          "next_confirmation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PendingActionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan"
+          },
+          "tool_results": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Tool Results"
+          },
+          "trace": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Trace"
+          }
+        },
+        "type": "object",
+        "required": [
+          "confirmation_id",
+          "status",
+          "message"
+        ],
+        "title": "ConfirmationDecisionResponse",
+        "description": "Response returned after approving or rejecting a pending action."
+      },
+      "ConfirmationPayload": {
+        "properties": {
+          "confirmation": {
+            "$ref": "#/components/schemas/PublicConfirmation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "confirmation"
+        ],
+        "title": "ConfirmationPayload"
+      },
+      "ConversationCreateRequest": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id",
+            "default": "default"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": "新会话"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "ConversationCreateRequest",
+        "description": "创建会话接口的请求体。"
+      },
+      "ConversationMessageView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "system",
+              "user",
+              "assistant",
+              "tool"
+            ],
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "content"
+        ],
+        "title": "ConversationMessageView",
+        "description": "One persisted conversation message returned to the frontend."
+      },
+      "ConversationView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "service_mode": {
+            "type": "string",
+            "title": "Service Mode",
+            "default": "bot"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "user_id",
+          "title",
+          "status"
+        ],
+        "title": "ConversationView",
+        "description": "会话列表或创建会话后返回给前端的简要信息。"
+      },
+      "ConversationWorkspaceView": {
+        "properties": {
+          "conversation": {
+            "$ref": "#/components/schemas/ConversationView"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationMessageView"
+            },
+            "type": "array",
+            "title": "Messages"
+          },
+          "pending_actions": {
+            "items": {
+              "$ref": "#/components/schemas/PendingActionView"
+            },
+            "type": "array",
+            "title": "Pending Actions"
+          },
+          "tickets": {
+            "items": {
+              "$ref": "#/components/schemas/TicketView"
+            },
+            "type": "array",
+            "title": "Tickets"
+          },
+          "responses": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ChatResponse"
+            },
+            "type": "object",
+            "title": "Responses"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/CustomerRunView"
+            },
+            "type": "array",
+            "title": "Runs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "conversation",
+          "messages",
+          "pending_actions",
+          "tickets"
+        ],
+        "title": "ConversationWorkspaceView"
+      },
+      "CostStrategy": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "basic",
+              "standard",
+              "premium"
+            ],
+            "title": "Tier"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "rag_top_k": {
+            "type": "integer",
+            "title": "Rag Top K"
+          },
+          "history_turns": {
+            "type": "integer",
+            "title": "History Turns"
+          },
+          "use_rerank": {
+            "type": "boolean",
+            "title": "Use Rerank",
+            "default": false
+          },
+          "cache_first": {
+            "type": "boolean",
+            "title": "Cache First",
+            "default": false
+          },
+          "degraded": {
+            "type": "boolean",
+            "title": "Degraded",
+            "default": false
+          },
+          "budget_tokens": {
+            "type": "integer",
+            "title": "Budget Tokens",
+            "default": 0
+          },
+          "used_tokens": {
+            "type": "integer",
+            "title": "Used Tokens",
+            "default": 0
+          },
+          "usage_ratio": {
+            "type": "number",
+            "title": "Usage Ratio",
+            "default": 0.0
+          },
+          "remaining_tokens": {
+            "type": "integer",
+            "title": "Remaining Tokens",
+            "default": 0
+          },
+          "usage_percent": {
+            "type": "number",
+            "title": "Usage Percent",
+            "default": 0.0
+          },
+          "budget_warning": {
+            "type": "boolean",
+            "title": "Budget Warning",
+            "default": false
+          },
+          "budget_exceeded": {
+            "type": "boolean",
+            "title": "Budget Exceeded",
+            "default": false
+          },
+          "degradation_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Degradation Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "tier",
+          "model",
+          "rag_top_k",
+          "history_turns"
+        ],
+        "title": "CostStrategy",
+        "description": "Runtime strategy selected for a tenant and a request."
+      },
+      "CustomerMemoryView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "memory_type": {
+            "type": "string",
+            "enum": [
+              "profile",
+              "task",
+              "event",
+              "risk"
+            ],
+            "title": "Memory Type"
+          },
+          "memory_key": {
+            "type": "string",
+            "title": "Memory Key"
+          },
+          "memory_value": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Memory Value"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence",
+            "default": 1.0
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "system"
+          },
+          "verification_status": {
+            "type": "string",
+            "enum": [
+              "explicit_user",
+              "verified_tool",
+              "business_system",
+              "human_confirmed",
+              "risk_engine"
+            ],
+            "title": "Verification Status"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Ids"
+          },
+          "sensitivity": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "sensitive"
+            ],
+            "title": "Sensitivity",
+            "default": "internal"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "memory_type",
+          "memory_key",
+          "verification_status"
+        ],
+        "title": "CustomerMemoryView",
+        "description": "Long-term memory selected for the current conversation."
+      },
+      "CustomerRunView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status"
+        ],
+        "title": "CustomerRunView"
+      },
+      "DeltaPayload": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "DeltaPayload"
+      },
+      "FailurePayload": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "failed",
+              "unknown"
+            ],
+            "title": "Status",
+            "default": "failed"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "FailurePayload"
+      },
+      "GraphStateView": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "next_nodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Next Nodes"
+          },
+          "values": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Values"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/GraphTaskView"
+            },
+            "type": "array",
+            "title": "Tasks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "status"
+        ],
+        "title": "GraphStateView",
+        "description": "Serializable view of a LangGraph checkpoint."
+      },
+      "GraphTaskView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "interrupts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Interrupts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "GraphTaskView",
+        "description": "One pending LangGraph task in a checkpoint snapshot."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "app": {
+            "type": "string",
+            "title": "App"
+          },
+          "runtime_env": {
+            "type": "string",
+            "title": "Runtime Env"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "app",
+          "runtime_env"
+        ],
+        "title": "HealthResponse",
+        "description": "健康检查接口返回值。\n\n只说明服务进程是否正常，不代表 LLM、数据库、Qdrant 都已经可用。"
+      },
+      "HeartbeatPayload": {
+        "properties": {},
+        "additionalProperties": false,
+        "type": "object",
+        "title": "HeartbeatPayload"
+      },
+      "HumanAssignmentRequest": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
+          },
+          "agent_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Agent Id"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "agent_id"
+        ],
+        "title": "HumanAssignmentRequest"
+      },
+      "HumanHandoffView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "conversation_id": {
+            "type": "string",
+            "title": "Conversation Id"
+          },
+          "support_ticket_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Support Ticket Id"
+          },
+          "origin_thread_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Thread Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "waiting_assignment",
+              "assigned",
+              "in_service",
+              "resolution_submitted",
+              "resolved",
+              "cancelled"
+            ],
+            "title": "Status"
+          },
+          "queue_name": {
+            "type": "string",
+            "title": "Queue Name"
+          },
+          "priority": {
+            "type": "string",
+            "title": "Priority"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "assigned_agent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Agent Id"
+          },
+          "resolution_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Code"
+          },
+          "resolution_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Summary"
+          },
+          "next_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Mode"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "requested_at": {
+            "type": "string",
+            "title": "Requested At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "user_id",
+          "conversation_id",
+          "status",
+          "queue_name",
+          "priority",
+          "reason",
+          "version",
+          "requested_at",
+          "updated_at"
+        ],
+        "title": "HumanHandoffView"
+      },
+      "HumanMessageRequest": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
+          },
+          "agent_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Agent Id"
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "agent_id",
+          "content"
+        ],
+        "title": "HumanMessageRequest"
+      },
+      "HumanResolutionConfirmationRequest": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
+          },
+          "operator_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Operator Id"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "operator_id"
+        ],
+        "title": "HumanResolutionConfirmationRequest"
+      },
+      "HumanResolutionRequest": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
+          },
+          "agent_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Agent Id"
+          },
+          "resolution_code": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Resolution Code"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Summary"
+          },
+          "next_mode": {
+            "type": "string",
+            "enum": [
+              "resume_bot",
+              "close_conversation"
+            ],
+            "title": "Next Mode",
+            "default": "resume_bot"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "agent_id",
+          "resolution_code",
+          "summary"
+        ],
+        "title": "HumanResolutionRequest"
+      },
+      "KnowledgeChunk": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "title",
+          "content",
+          "score"
+        ],
+        "title": "KnowledgeChunk",
+        "description": "RAG 检索命中的知识块。"
+      },
+      "KnowledgePayload": {
+        "properties": {
+          "knowledge": {
+            "items": {
+              "$ref": "#/components/schemas/PublicKnowledge"
+            },
+            "type": "array",
+            "title": "Knowledge"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "knowledge"
+        ],
+        "title": "KnowledgePayload"
+      },
+      "MemoryCleanupView": {
+        "properties": {
+          "deleted_count": {
+            "type": "integer",
+            "title": "Deleted Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted_count"
+        ],
+        "title": "MemoryCleanupView",
+        "description": "Result of deleting expired long-term memories."
+      },
+      "MemoryPreferenceUpdateRequest": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "MemoryPreferenceUpdateRequest",
+        "description": "Enable or disable long-term memory for one user."
+      },
+      "MemoryPreferenceView": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "user_id",
+          "enabled"
+        ],
+        "title": "MemoryPreferenceView",
+        "description": "Current long-term memory consent returned to the client."
+      },
+      "MemoryUpdateRequest": {
+        "properties": {
+          "memory_value": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Memory Value"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "memory_value"
+        ],
+        "title": "MemoryUpdateRequest",
+        "description": "User-controlled update for one owned memory."
+      },
+      "NodePayload": {
+        "properties": {
+          "node": {
+            "type": "string",
+            "title": "Node"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "node"
+        ],
+        "title": "NodePayload"
+      },
+      "OutputReference": {
+        "properties": {
+          "step_id": {
+            "type": "string",
+            "title": "Step Id"
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^(?:data|business_status|execution_status)(?:\\.[A-Za-z][A-Za-z0-9_]*){0,7}$",
+            "title": "Path"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "step_id",
+          "path"
+        ],
+        "title": "OutputReference"
+      },
+      "PendingActionSummaryView": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "total_pending": {
+            "type": "integer",
+            "title": "Total Pending"
+          },
+          "active_pending": {
+            "type": "integer",
+            "title": "Active Pending"
+          },
+          "expired_pending": {
+            "type": "integer",
+            "title": "Expired Pending"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/PendingActionView"
+            },
+            "type": "array",
+            "title": "Actions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "user_id",
+          "total_pending",
+          "active_pending",
+          "expired_pending"
+        ],
+        "title": "PendingActionSummaryView",
+        "description": "用户待确认动作概览。"
+      },
+      "PendingActionView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "action_type": {
+            "type": "string",
+            "title": "Action Type"
+          },
+          "tool_name": {
+            "type": "string",
+            "title": "Tool Name"
+          },
+          "arguments": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Arguments"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "executed",
+              "expired",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "risk_level": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Risk Level",
+            "default": "low"
+          },
+          "confirmation_prompt": {
+            "type": "string",
+            "title": "Confirmation Prompt"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          },
+          "confirmation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmation Id"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          },
+          "result": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Result"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "expired": {
+            "type": "boolean",
+            "title": "Expired",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "user_id",
+          "action_type",
+          "tool_name",
+          "status",
+          "confirmation_prompt"
+        ],
+        "title": "PendingActionView",
+        "description": "User-facing view of an operation waiting for confirmation."
+      },
+      "PlanExecutionResult": {
+        "properties": {
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Observations"
+          },
+          "waiting_confirmation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waiting Confirmation Id"
+          },
+          "final_answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Answer"
+          }
+        },
+        "type": "object",
+        "title": "PlanExecutionResult",
+        "description": "Result produced by executing a plan until finish or interruption."
+      },
+      "PlanStep": {
+        "properties": {
+          "step_id": {
+            "type": "string",
+            "title": "Step Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "goal": {
+            "type": "string",
+            "title": "Goal"
+          },
+          "action_type": {
+            "type": "string",
+            "enum": [
+              "rag",
+              "tool",
+              "llm",
+              "confirm",
+              "handoff"
+            ],
+            "title": "Action Type"
+          },
+          "tool_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Name"
+          },
+          "depends_on": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Depends On"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "waiting_confirmation",
+              "success",
+              "not_satisfied",
+              "failed",
+              "skipped"
+            ],
+            "title": "Status",
+            "default": "pending"
+          },
+          "requires_confirmation": {
+            "type": "boolean",
+            "title": "Requires Confirmation",
+            "default": false
+          },
+          "arguments": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Arguments"
+          },
+          "conditions": {
+            "items": {
+              "$ref": "#/components/schemas/StepCondition"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Conditions"
+          },
+          "argument_refs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/OutputReference"
+            },
+            "type": "object",
+            "maxProperties": 16,
+            "title": "Argument Refs"
+          },
+          "max_attempts": {
+            "type": "integer",
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Max Attempts",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "step_id",
+          "title",
+          "goal",
+          "action_type"
+        ],
+        "title": "PlanStep",
+        "description": "One executable step in a multi-intent user request."
+      },
+      "PublicConfirmation": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "action_type": {
+            "type": "string",
+            "title": "Action Type"
+          },
+          "tool_name": {
+            "type": "string",
+            "title": "Tool Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Id"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "action_type",
+          "tool_name",
+          "status"
+        ],
+        "title": "PublicConfirmation"
+      },
+      "PublicKnowledge": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "title",
+          "content"
+        ],
+        "title": "PublicKnowledge"
+      },
+      "RunSummaryView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "total_tokens": {
+            "type": "integer",
+            "title": "Total Tokens"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "conversation_id",
+          "status",
+          "model",
+          "total_tokens",
+          "error_code",
+          "started_at"
+        ],
+        "title": "RunSummaryView"
+      },
+      "RuntimeConfigView": {
+        "properties": {
+          "app_name": {
+            "type": "string",
+            "title": "App Name"
+          },
+          "runtime_env": {
+            "type": "string",
+            "title": "Runtime Env"
+          },
+          "api_prefix": {
+            "type": "string",
+            "title": "Api Prefix"
+          },
+          "llm_provider": {
+            "type": "string",
+            "title": "Llm Provider"
+          },
+          "embedding_provider": {
+            "type": "string",
+            "title": "Embedding Provider"
+          },
+          "vector_store_provider": {
+            "type": "string",
+            "title": "Vector Store Provider"
+          },
+          "rag_enabled": {
+            "type": "boolean",
+            "title": "Rag Enabled"
+          },
+          "semantic_cache_enabled": {
+            "type": "boolean",
+            "title": "Semantic Cache Enabled"
+          },
+          "mcp_after_sales_enabled": {
+            "type": "boolean",
+            "title": "Mcp After Sales Enabled"
+          },
+          "cost_governance_enabled": {
+            "type": "boolean",
+            "title": "Cost Governance Enabled"
+          },
+          "search_enabled": {
+            "type": "boolean",
+            "title": "Search Enabled"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "app_name",
+          "runtime_env",
+          "api_prefix",
+          "llm_provider",
+          "embedding_provider",
+          "vector_store_provider",
+          "rag_enabled",
+          "semantic_cache_enabled",
+          "mcp_after_sales_enabled",
+          "cost_governance_enabled",
+          "search_enabled"
+        ],
+        "title": "RuntimeConfigView",
+        "description": "不暴露密钥的运行配置摘要。"
+      },
+      "SessionView": {
+        "properties": {
+          "authenticated": {
+            "type": "boolean",
+            "title": "Authenticated"
+          },
+          "development_mode": {
+            "type": "boolean",
+            "title": "Development Mode"
+          },
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "api_prefix": {
+            "type": "string",
+            "title": "Api Prefix"
+          }
+        },
+        "type": "object",
+        "required": [
+          "authenticated",
+          "development_mode",
+          "tenant_id",
+          "user_id",
+          "display_name",
+          "roles",
+          "api_prefix"
+        ],
+        "title": "SessionView"
+      },
+      "StartedPayload": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "running"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "StartedPayload"
+      },
+      "StepCondition": {
+        "properties": {
+          "step_id": {
+            "type": "string",
+            "title": "Step Id"
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^(?:data|business_status|execution_status)(?:\\.[A-Za-z][A-Za-z0-9_]*){0,7}$",
+            "title": "Path"
+          },
+          "operator": {
+            "type": "string",
+            "enum": [
+              "eq",
+              "ne",
+              "in",
+              "exists"
+            ],
+            "title": "Operator",
+            "default": "eq"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "step_id",
+          "path"
+        ],
+        "title": "StepCondition"
+      },
+      "StreamEvent": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "title": "Event Id"
+          },
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "run_started",
+              "node_completed",
+              "knowledge_ready",
+              "tool_started",
+              "tool_completed",
+              "answer_delta",
+              "confirmation_required",
+              "run_completed",
+              "run_failed",
+              "stream_interrupted",
+              "heartbeat"
+            ],
+            "title": "Event Type"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Sequence"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StartedPayload"
+              },
+              {
+                "$ref": "#/components/schemas/NodePayload"
+              },
+              {
+                "$ref": "#/components/schemas/KnowledgePayload"
+              },
+              {
+                "$ref": "#/components/schemas/ToolPayload"
+              },
+              {
+                "$ref": "#/components/schemas/DeltaPayload"
+              },
+              {
+                "$ref": "#/components/schemas/ConfirmationPayload"
+              },
+              {
+                "$ref": "#/components/schemas/CompletedPayload"
+              },
+              {
+                "$ref": "#/components/schemas/FailurePayload"
+              },
+              {
+                "$ref": "#/components/schemas/HeartbeatPayload"
+              }
+            ],
+            "title": "Payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "event_id",
+          "event_type",
+          "run_id",
+          "conversation_id",
+          "thread_id",
+          "sequence",
+          "payload"
+        ],
+        "title": "StreamEvent"
+      },
+      "TenantStrategyView": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
+          },
+          "strategy": {
+            "$ref": "#/components/schemas/CostStrategy"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "strategy"
+        ],
+        "title": "TenantStrategyView",
+        "description": "租户当前成本策略。"
+      },
+      "TicketView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "priority": {
+            "type": "string",
+            "title": "Priority"
+          },
+          "order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Id"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "category",
+          "title",
+          "status",
+          "priority"
+        ],
+        "title": "TicketView"
+      },
+      "ToolCallView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "arguments": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Arguments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "arguments"
+        ],
+        "title": "ToolCallView",
+        "description": "模型生成的工具调用。"
+      },
+      "ToolOutcome": {
+        "properties": {
+          "execution_status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error",
+              "timeout"
+            ],
+            "title": "Execution Status"
+          },
+          "business_status": {
+            "type": "string",
+            "enum": [
+              "satisfied",
+              "not_satisfied",
+              "unknown"
+            ],
+            "title": "Business Status"
+          },
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Data"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "execution_status",
+          "business_status"
+        ],
+        "title": "ToolOutcome"
+      },
+      "ToolPayload": {
+        "properties": {
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "execution_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Status"
+          },
+          "business_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tool",
+          "call_id"
+        ],
+        "title": "ToolPayload"
+      },
+      "ToolResultView": {
+        "properties": {
+          "tool_call_id": {
+            "type": "string",
+            "title": "Tool Call Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToolOutcome"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "tool_call_id",
+          "name",
+          "ok",
+          "payload"
+        ],
+        "title": "ToolResultView",
+        "description": "后端工具执行结果。"
+      },
+      "UIConfigView": {
+        "properties": {
+          "api_prefix": {
+            "type": "string",
+            "title": "Api Prefix"
+          },
+          "authentication_required": {
+            "type": "boolean",
+            "title": "Authentication Required"
+          }
+        },
+        "type": "object",
+        "required": [
+          "api_prefix",
+          "authentication_required"
+        ],
+        "title": "UIConfigView"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

@@ -1,0 +1,49 @@
+name: Explicit paid full-stack acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type I_ACCEPT_PAID_API_CALLS to create demo tickets and use model/embedding quota'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  real-e2e:
+    if: inputs.confirmation == 'I_ACCEPT_PAID_API_CALLS'
+    environment: real-e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CUSTOMER_AGENT_PROJECT: customer-agent-e2e
+      CUSTOMER_AGENT_URL: http://127.0.0.1:18002
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+      LLM_MODEL: ${{ vars.LLM_MODEL || 'qwen3.7-plus' }}
+      EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+      EMBEDDING_BASE_URL: ${{ secrets.EMBEDDING_BASE_URL }}
+      EMBEDDING_MODEL: ${{ vars.EMBEDDING_MODEL || 'text-embedding-v4' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements.lock
+      - name: Create private runner-only provider configuration
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from dotenv import set_key
+          target = Path('.env')
+          target.touch()
+          for name in ['LLM_API_KEY','LLM_BASE_URL','LLM_MODEL','EMBEDDING_API_KEY','EMBEDDING_BASE_URL','EMBEDDING_MODEL']:
+              assert os.environ.get(name), f'Missing configured secret/variable: {name}'
+              set_key(target, name, os.environ[name])
+          PY
+      - run: python scripts/run_full.py --project customer-agent-e2e --port 18002
+      - run: python scripts/verify_full.py
+      - run: python scripts/verify_streaming.py
+      - name: Stop the dedicated CI stack (retain no host user data)
+        if: always()
+        run: docker compose --env-file .env.full -p customer-agent-e2e -f docker-compose.full.yml down

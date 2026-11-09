@@ -1,0 +1,102 @@
+name: customer-agent-full
+
+x-app: &app
+  build: .
+  image: ${CUSTOMER_AGENT_IMAGE:-customer-agent:local}
+  env_file: ${CUSTOMER_AGENT_ENV_FILE:-.env.full}
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${FULL_MYSQL_ROOT_PASSWORD:?Run scripts/prepare_full.py first}
+      MYSQL_DATABASE: customer_service
+      MYSQL_USER: customer_service
+      MYSQL_PASSWORD: ${FULL_MYSQL_PASSWORD:?Run scripts/prepare_full.py first}
+    command: [--character-set-server=utf8mb4, --collation-server=utf8mb4_unicode_ci]
+    volumes: [mysql_data:/var/lib/mysql]
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$$MYSQL_PASSWORD" mysqladmin ping -h 127.0.0.1 -ucustomer_service --silent']
+      interval: 5s
+      timeout: 5s
+      retries: 60
+
+  redis:
+    image: redis:7.2
+    command: [redis-server, --appendonly, 'yes']
+    volumes: [redis_data:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  qdrant:
+    image: qdrant/qdrant:v1.18.0
+    volumes: [qdrant_data:/qdrant/storage]
+
+  checkpoint-postgres:
+    image: postgres:16.6
+    environment:
+      POSTGRES_DB: graph_checkpoint
+      POSTGRES_USER: graph
+      POSTGRES_PASSWORD: ${FULL_POSTGRES_PASSWORD:?Run scripts/prepare_full.py first}
+    volumes: [checkpoint_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U graph -d graph_checkpoint]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  init:
+    <<: *app
+    profiles: [setup]
+    command: [python, scripts/bootstrap_full.py]
+    depends_on:
+      mysql: {condition: service_healthy}
+
+  after-sales-mcp:
+    image: ${CUSTOMER_AGENT_MCP_IMAGE:-customer-agent-mcp:local}
+    build:
+      context: .
+      dockerfile: mcp_services/after_sales_server/Dockerfile
+    environment:
+      DATABASE_URL: mysql+aiomysql://customer_service:${FULL_MYSQL_PASSWORD}@mysql:3306/customer_service?charset=utf8mb4
+      HOST: 0.0.0.0
+      PORT: '8100'
+      APPROVAL_SIGNING_SECRET: ${MCP_APPROVAL_SIGNING_SECRET}
+      APPROVAL_ISSUER: customer-service-agent
+      SERVICE_AUTH_ENABLED: 'true'
+      SERVICE_AUTH_SECRET: ${MCP_SERVICE_AUTH_SECRET}
+      SERVICE_AUTH_ISSUER: customer-service-agent
+      SERVICE_AUTH_AUDIENCE: http://after-sales-mcp:8100
+      SERVICE_AUTH_RESOURCE_URL: http://after-sales-mcp:8100
+      CALL_SIGNING_SECRET: ${MCP_CALL_SIGNING_SECRET}
+    healthcheck:
+      test: [CMD, python, -c, "import socket; socket.create_connection(('127.0.0.1',8100),3).close()"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    depends_on:
+      mysql: {condition: service_healthy}
+
+  app:
+    <<: *app
+    stop_grace_period: 45s
+    ports: ['127.0.0.1:${FULL_HTTP_PORT:-8002}:8000']
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request,json; r=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health/ready',timeout=5)); assert r['status']=='ok'"]
+      interval: 5s
+      timeout: 8s
+      retries: 30
+    depends_on:
+      redis: {condition: service_healthy}
+      qdrant: {condition: service_started}
+      checkpoint-postgres: {condition: service_healthy}
+      after-sales-mcp: {condition: service_healthy}
+
+volumes:
+  mysql_data:
+  redis_data:
+  qdrant_data:
+  checkpoint_data:
